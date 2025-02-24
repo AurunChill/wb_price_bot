@@ -1,6 +1,6 @@
 from aiogram import Router, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from bot.data.database import db
+from bot.data.database import async_session
 from bot.data.services.user_service import UserService
 from bot.data.models.user import User
 
@@ -9,14 +9,14 @@ router = Router()
 
 @router.message(F.text == "/start")
 async def start(message: Message):
-    user = UserService(db).get_by_id(message.chat.id)
+    user = await UserService(async_session).get_by_id(message.chat.id)
     if not user:
         new_user = User(
             user_id=message.chat.id,
             username=message.from_user.full_name,
             link=f"t.me/{message.from_user.username}",
         )
-        UserService(db).create(new_user)
+        await UserService(async_session).create(new_user)
 
     await message.answer(
         "<b>🛍 Добро пожаловать в PriceTrackerBot!</b>\n\n"

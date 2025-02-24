@@ -1,3 +1,4 @@
+import asyncio
 import aiohttp
 from datetime import datetime
 from typing import Optional, Dict, List
@@ -22,7 +23,9 @@ class AsyncWildberriesParser:
     async def _fetch(self, url: str) -> Optional[Dict]:
         """Асинхронный GET-запрос"""
         try:
-            async with self.session.get(url, headers=self.headers, timeout=3) as response:
+            async with self.session.get(
+                url, headers=self.headers, timeout=3
+            ) as response:
                 response.raise_for_status()
                 return await response.json()
         except Exception as e:
@@ -37,52 +40,65 @@ class AsyncWildberriesParser:
         return vol, part, nm
 
     async def _get_price_history(self, article: str) -> List[Dict]:
-        """Асинхронное получение истории цен"""
+        """Параллельный перебор корзин для истории цен"""
         vol, part, nm = await self._get_vol_part_nm(article)
 
-        async with aiohttp.ClientSession() as temp_session:
-            for basket in range(1, 100):
-                basket_num = f"{basket:02d}"
-                url = f"https://basket-{basket_num}.wbbasket.ru/vol{vol}/part{part}/{nm}/info/price-history.json"
+        async def fetch_basket(basket: int):
+            url = f"https://basket-{basket:02d}.wbbasket.ru/vol{vol}/part{part}/{nm}/info/price-history.json"
+            try:
+                async with self.session.get(url, timeout=1) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return [
+                            {
+                                "date": datetime.fromtimestamp(item["dt"]).strftime(
+                                    "%d-%m-%Y"
+                                ),
+                                "price": round(item["price"]["RUB"] / 100, 2),
+                            }
+                            for item in data
+                        ]
+            except Exception:
+                return None
 
-                try:
-                    async with temp_session.get(url, headers=self.headers) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            return [
-                                {
-                                    "date": datetime.fromtimestamp(item["dt"]).strftime("%d-%m-%Y"),
-                                    "price": round(item["price"]["RUB"] / 100, 2),
-                                }
-                                for item in data
-                            ]
-                except Exception:
-                    continue
+        # Запускаем параллельно первые 10 корзин
+        tasks = [fetch_basket(b) for b in range(1, 11)]
+        for result in await asyncio.gather(*tasks):
+            if result:
+                return result
+
+        # Если не нашли в первых 10, проверяем остальные
+        tasks = [fetch_basket(b) for b in range(11, 100)]
+        for result in await asyncio.gather(*tasks):
+            if result:
+                return result
 
         return []
 
     async def _find_valid_image_url(self, article: str) -> str:
-        """Асинхронный поиск изображения"""
-        async with aiohttp.ClientSession() as temp_session:
-            for basket in range(1, 100):
-                basket_num = f"{basket:02d}"
-                vol, part, nm = await self._get_vol_part_nm(article)
-                url_big = f"https://basket-{basket_num}.wbbasket.ru/vol{vol}/part{part}/{nm}/images/big/1.webp"
-                url_small = f"https://basket-{basket_num}.wbbasket.ru/vol{vol}/part{part}/{nm}/images/c246x328/1.webp"
-                url_tm = f"https://basket-{basket_num}.wbbasket.ru/vol{vol}/part{part}/{nm}/images/tm/1.webp"
+        """Параллельный поиск изображения с приоритетом big"""
+        vol, part, nm = await self._get_vol_part_nm(article)
 
-                try:
-                    async with temp_session.head(url_big) as response:
-                        if response.status == 200:
-                            return url_big
-                    async with temp_session.head(url_small) as response:
-                        if response.status == 200:
-                            return url_small
-                    async with temp_session.head(url_tm) as response:
-                        if response.status == 200:
-                            return url_tm
-                except Exception:
-                    continue
+        async def check_image(basket: int, size: str):
+            url = f"https://basket-{basket:02d}.wbbasket.ru/vol{vol}/part{part}/{nm}/images/{size}/1.webp"
+            try:
+                async with self.session.head(url, timeout=1) as response:
+                    return url if response.status == 200 else None
+            except Exception:
+                return None
+
+        # Приоритетный поиск big изображений
+        tasks = [check_image(b, "big") for b in range(1, 100)]
+        for result in await asyncio.gather(*tasks):
+            if result:
+                return result
+
+        # Если не нашли big, проверяем другие размеры
+        for size in ["c246x328", "tm"]:
+            tasks = [check_image(b, size) for b in range(1, 100)]
+            for result in await asyncio.gather(*tasks):
+                if result:
+                    return result
 
         return ""
 
@@ -90,7 +106,7 @@ class AsyncWildberriesParser:
         """Основной асинхронный метод"""
         main_url = f"https://www.wildberries.ru/catalog/{article}/detail.aspx"
         data_url = f"https://card.wb.ru/cards/v2/detail?appType=1&curr=rub&dest=-5856842&spp=30&ab_testing=false&lang=ru&nm={article}"
-        
+
         product_data = await self._fetch(data_url)
         if not product_data or not product_data.get("data", {}).get("products"):
             return None
@@ -152,6 +168,8 @@ async def main():
             else:
                 print(f"\nНе удалось получить данные для артикула {article}")
 
+
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())

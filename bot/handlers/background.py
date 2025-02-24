@@ -1,13 +1,13 @@
 from datetime import datetime
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.bot import bot
-from bot.data.database import get_db
+from bot.data.database import async_session
 from bot.data.services.product_service import ProductService
 from parser.wildberries import AsyncWildberriesParser
 
+
 async def check_prices():
-    db = next(get_db())
-    products = ProductService(db).get_all()
+    products = await ProductService(async_session).get_all()
     
     async with AsyncWildberriesParser() as parser:
         for product in products:
@@ -68,7 +68,7 @@ async def check_prices():
                     )
 
                     # Обновляем данные в БД
-                    ProductService(db).update(
+                    await ProductService(async_session).update(
                         product.id,
                         current_price=current_info["current_price"],
                         prev_price=product.current_price,

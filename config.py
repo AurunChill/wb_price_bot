@@ -12,6 +12,7 @@ if not ENV_PATH.exists():
         f"{ENV_PATH} does not exist. Create .env file with required variables."
     )
 
+
 load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 
@@ -23,6 +24,7 @@ class EnvSettings(BaseSettings):
 
 class BotSettings(EnvSettings):
     BOT_TOKEN: str
+    ALLOWED_USERS: list[str]
 
 
 class LoggingSettings(EnvSettings):
@@ -37,8 +39,9 @@ class DatabaseSettings(EnvSettings):
 
     @property
     def DATABASE_URL(self):
+        DATABASE_PATH = DATA_PATH / self.DB_NAME
         if self.DB_TYPE == "sqlite":
-            return f"sqlite:///{DATA_PATH / self.DB_NAME}"
+            return f"sqlite+aiosqlite:///{DATABASE_PATH}"
         raise ValueError("Unsupported database type")
 
 

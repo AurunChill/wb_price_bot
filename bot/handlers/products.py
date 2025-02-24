@@ -3,7 +3,7 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.data.models.product import Product
-from bot.data.database import db
+from bot.data.database import async_session
 from bot.data.services.product_service import ProductService
 
 router = Router()
@@ -12,15 +12,15 @@ router = Router()
 @router.message(F.text == "/products")
 async def show_products(message: Message):
     """Показывает список товаров с кнопкой обновления"""
-    products = ProductService(db).get_by_user(message.chat.id)
+    products = await ProductService(async_session).get_by_user(message.chat.id)
     await _send_products_message(message, products)
 
 
 @router.callback_query(F.data == "refresh_products")
 async def refresh_products(callback: CallbackQuery):
     """Обработчик обновления списка товаров"""
-    products = ProductService(db).get_by_user(callback.message.chat.id)
-    await callback.message.edit_reply_markup()  # Удаляем старые кнопки
+    products = await ProductService(async_session).get_by_user(callback.message.chat.id)
+    await callback.message.edit_reply_markup(reply_markup=None)  # Удаляем старые кнопки
     await _send_products_message(callback.message, products, is_edit=True)
     await callback.answer("♻️ Список обновлен")
 
@@ -63,7 +63,7 @@ async def show_products_callback(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("product_"))
 async def product_detail(callback: CallbackQuery):
     product_id = int(callback.data.split("_")[1])
-    product = ProductService(db).get_by_id(product_id)
+    product = await ProductService(async_session).get_by_id(product_id)
 
     if not product:
         return await callback.answer("😢 Товар не найден")
@@ -108,7 +108,7 @@ async def product_detail(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("delete_"))
 async def delete_product(callback: CallbackQuery):
     product_id = int(callback.data.split("_")[1])
-    ProductService(db).delete(product_id)
+    await ProductService(async_session).delete(product_id)
     await callback.message.delete()
     await callback.answer("🗑 Товар успешно удален!")
     await refresh_products(callback)
