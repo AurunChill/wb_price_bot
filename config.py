@@ -24,7 +24,13 @@ class EnvSettings(BaseSettings):
 
 class BotSettings(EnvSettings):
     BOT_TOKEN: str
-    ALLOWED_USERS: list[str]
+
+    @property
+    def PRICE_INTERVAL(self): return 5
+
+    @property
+    def ADMINS(self): return ["aurunchill", "GalaninAleksei"]
+
 
 
 class LoggingSettings(EnvSettings):

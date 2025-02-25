@@ -1,13 +1,21 @@
 from aiogram import types
 from aiogram.dispatcher.middlewares.base import BaseMiddleware
+from bot.data.services.allowed_users_service import AllowedUserService
+from bot.data.database import async_session
 from config import settings
+
 
 class CheckUserMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
-        if isinstance(event, types.Message):
-            username = event.from_user.username
-            user_id = str(event.from_user.id)
-            if username.lower() not in settings.bot.ALLOWED_USERS and user_id not in settings.bot.ALLOWED_USERS:
-                await event.answer("<b>Вы не можете пользоваться ботом!</b> 😊")
-                return
+        if isinstance(event, (types.Message, types.CallbackQuery)):
+            user = event.from_user
+            
+            admins = [admin.lower() for admin in settings.bot.ADMINS]
+            if str(user.id) not in admins and user.username.lower() not in admins:
+                async with async_session() as session:
+                    service = AllowedUserService(session)
+                    if not await service.is_allowed(user.id):
+                        await event.answer("<b>Доступ запрещён!</b> 🔒")
+                        return
+
         return await handler(event, data)

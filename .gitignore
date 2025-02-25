@@ -184,3 +184,9 @@ fabric.properties
 
 # idea folder, uncomment if you don't need it
 .idea
+
+# Database SQLite
+bot/data/wildberries.db
+
+# Alembic
+alembic/versions

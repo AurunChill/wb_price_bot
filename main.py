@@ -3,8 +3,9 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from bot.bot import bot, dispatcher
 from bot.handlers import routers
 from bot.handlers.background import check_prices
-from bot.data.database import create_tables
+from bot.data.database import create_tables, run_migrations
 from bot.middleware import CheckUserMiddleware
+from config import settings
 
 
 async def start_bot():
@@ -17,8 +18,9 @@ async def start_bot():
 
 async def main():
     await create_tables()
+    await run_migrations()
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(check_prices, "interval", minutes=5)
+    scheduler.add_job(check_prices, "interval", minutes=settings.bot.PRICE_INTERVAL)
     scheduler.start()
 
     await start_bot()
