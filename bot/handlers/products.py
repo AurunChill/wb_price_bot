@@ -62,6 +62,7 @@ async def show_products_callback(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("product_"))
 async def product_detail(callback: CallbackQuery):
+    print('I am here')
     product_id = int(callback.data.split("_")[1])
     product = await ProductService(async_session).get_by_id(product_id)
 

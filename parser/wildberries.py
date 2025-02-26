@@ -61,14 +61,7 @@ class AsyncWildberriesParser:
             except Exception:
                 return None
 
-        # Запускаем параллельно первые 10 корзин
-        tasks = [fetch_basket(b) for b in range(1, 11)]
-        for result in await asyncio.gather(*tasks):
-            if result:
-                return result
-
-        # Если не нашли в первых 10, проверяем остальные
-        tasks = [fetch_basket(b) for b in range(11, 100)]
+        tasks = [fetch_basket(b) for b in range(1, 100)]
         for result in await asyncio.gather(*tasks):
             if result:
                 return result
@@ -82,19 +75,13 @@ class AsyncWildberriesParser:
         async def check_image(basket: int, size: str):
             url = f"https://basket-{basket:02d}.wbbasket.ru/vol{vol}/part{part}/{nm}/images/{size}/1.webp"
             try:
-                async with self.session.head(url, timeout=1) as response:
+                async with self.session.head(url) as response:
                     return url if response.status == 200 else None
             except Exception:
                 return None
 
-        # Приоритетный поиск big изображений
-        tasks = [check_image(b, "big") for b in range(1, 100)]
-        for result in await asyncio.gather(*tasks):
-            if result:
-                return result
-
         # Если не нашли big, проверяем другие размеры
-        for size in ["c246x328", "tm"]:
+        for size in ["big", "c246x328", "tm"]:
             tasks = [check_image(b, size) for b in range(1, 100)]
             for result in await asyncio.gather(*tasks):
                 if result:
@@ -153,7 +140,7 @@ class AsyncWildberriesParser:
 
 async def main():
     async with AsyncWildberriesParser() as parser:
-        test_articles = ["174284337", "122", "204577998"]
+        test_articles = ["319796142"]
         for article in test_articles:
             result = await parser.get_product_info(article)
             if result:

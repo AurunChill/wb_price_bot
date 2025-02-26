@@ -1,6 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from bot.data.models.product import Product
 
 class ProductService:
@@ -25,6 +25,15 @@ class ProductService:
                 if product:
                     await db.delete(product)
                     await db.commit()
+            except Exception:
+                await db.rollback()
+                raise
+
+    async def delete_all_by_user_id(self, user_id: int) -> None:
+        async with self.session_factory() as db:
+            try:
+                await db.execute(delete(Product).where(Product.user_id == user_id))
+                await db.commit()
             except Exception:
                 await db.rollback()
                 raise
@@ -64,3 +73,4 @@ class ProductService:
                 select(Product).filter(Product.article == article, Product.user_id == user_id)
             )
             return result.scalars().first()
+ 

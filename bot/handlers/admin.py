@@ -3,6 +3,8 @@ from aiogram.types import Message
 import re
 from bot.data.database import async_session
 from bot.data.services.allowed_users_service import AllowedUserService
+from bot.data.services.user_service import UserService
+from bot.data.services.product_service import ProductService    
 from config import settings
 
 router = Router()
@@ -34,29 +36,28 @@ async def add_user(message: Message):
         identifier = " ".join(parts[1:])  # Объединяем все аргументы после /add
         identifier = identifier.strip()
 
-        async with async_session() as session:
-            allowed_service = AllowedUserService(session)
+        allowed_service = AllowedUserService(async_session)
 
-            # Обработка user_id
-            if identifier.isdigit():
-                user_id = int(identifier)
-                if await allowed_service.is_allowed_by_id(user_id):
-                    await message.answer("ℹ️ Пользователь уже имеет доступ")
-                    return
+        # Обработка user_id
+        if identifier.isdigit():
+            user_id = int(identifier)
+            if await allowed_service.is_allowed_by_id(user_id):
+                await message.answer("ℹ️ Пользователь уже имеет доступ")
+                return
 
-                await allowed_service.add_user(user_id)
-                await message.answer(f"✅ Пользователь [ID: {user_id}] добавлен")
+            await allowed_service.add_user(user_id)
+            await message.answer(f"✅ Пользователь [ID: {user_id}] добавлен")
 
-            # Обработка username/ссылки
-            else:
-                username = parse_username(identifier)
+        # Обработка username/ссылки
+        else:
+            username = parse_username(identifier)
 
-                if await allowed_service.is_allowed_by_username(username):
-                    await message.answer("ℹ️ Пользователь уже имеет доступ")
-                    return
+            if await allowed_service.is_allowed_by_username(username):
+                await message.answer("ℹ️ Пользователь уже имеет доступ")
+                return
 
-                await allowed_service.add_user(username=username)
-                await message.answer(f"✅ Пользователь @{username} добавлен")
+            await allowed_service.add_user(username=username)
+            await message.answer(f"✅ Пользователь @{username} добавлен")
 
     except Exception as e:
         print(e)
@@ -77,23 +78,28 @@ async def remove_user(message: Message):
         _, identifier = message.text.split(maxsplit=1)
         identifier = identifier.strip()
 
-        async with async_session() as session:
-            allowed_service = AllowedUserService(session)
+        allowed_service = AllowedUserService(async_session)
+        user_service = UserService(async_session)
+        product_service = ProductService(async_session)
 
-            # Обработка user_id
-            if identifier.isdigit():
-                success = await allowed_service.remove_user_by_id(int(identifier))
-                response = "✅ Удалено" if success else "❌ Пользователь не найден"
-                await message.answer(response)
+        # Удаление из allowed_users
+        if identifier.isdigit():
+            user_id = int(identifier)
+            user = await user_service.get_by_id(user_id)
+            success = await allowed_service.remove_user_by_id(user_id)
+        else:
+            username = parse_username(identifier)
+            user = await user_service.get_by_username(username)
+            success = await allowed_service.remove_user_by_username(username)
 
-            # Обработка username/ссылки
-            else:
-                username = parse_username(identifier)
-                success = await allowed_service.remove_user_by_username(
-                    username=username
-                )
-                response = "✅ Удалено" if success else "❌ Пользователь не найден"
-                await message.answer(response)
+        # Если пользователь найден в основной базе
+        if user:
+            # Удаляем все связанные объекты (пример для Product)
+            await product_service.delete_all_by_user_id(user.user_id)
+
+
+        response = "✅ Удалено (включая связанные данные)" if success else "❌ Пользователь не найден"
+        await message.answer(response)
 
     except Exception as e:
         print(e)
@@ -108,31 +114,30 @@ async def list_allowed_users(message: Message):
     if not is_admin(message.from_user):
         return
 
-    async with async_session() as session:
-        allowed_service = AllowedUserService(session)
-        users = await allowed_service.get_all()
+    allowed_service = AllowedUserService(async_session)
+    users = await allowed_service.get_all()
 
-        if not users:
-            await message.answer("📭 Список разрешенных пользователей пуст")
-            return
+    if not users:
+        await message.answer("📭 Список разрешенных пользователей пуст")
+        return
 
-        user_list = []
-        for idx, user in enumerate(users, 1):
-            line = f"{idx}. "
-            if user.user_id:
-                line += f"🆔 <code>{user.user_id}</code>"
-            if user.username:
-                line += (
-                    f" │ 👤 @{user.username}"
-                    if user.user_id
-                    else f"👤 @{user.username}"
-                )
-            user_list.append(line)
+    user_list = []
+    for idx, user in enumerate(users, 1):
+        line = f"{idx}. "
+        if user.user_id:
+            line += f"🆔 <code>{user.user_id}</code>"
+        if user.username:
+            line += (
+                f" │ 👤 @{user.username}"
+                if user.user_id
+                else f"👤 @{user.username}"
+            )
+        user_list.append(line)
 
-        response = (
-            "📋 <b>Список разрешенных пользователей:</b>\n\n"
-            + "\n".join(user_list)
-            + "\n\n<i>Используйте /add или /remove для управления</i>"
-        )
+    response = (
+        "📋 <b>Список разрешенных пользователей:</b>\n\n"
+        + "\n".join(user_list)
+        + "\n\n<i>Используйте /add или /remove для управления</i>"
+    )
 
-        await message.answer(response)
+    await message.answer(response)

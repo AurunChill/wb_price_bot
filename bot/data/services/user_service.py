@@ -47,8 +47,14 @@ class UserService:
     async def get_by_id(self, user_id: int) -> Optional[User]:
         async with self.session_factory() as db:
             return await db.get(User, user_id)
+        
+    async def get_by_username(self, username: str) -> Optional[User]:
+        async with self.session_factory() as db:
+            result = await db.execute(select(User).where(User.username == username.lower()))
+            return result.scalar_one_or_none()
 
     async def get_all(self) -> List[User]:
         async with self.session_factory() as db:
             result = await db.execute(select(User))
             return result.scalars().all()
+ 

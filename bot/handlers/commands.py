@@ -11,10 +11,11 @@ router = Router()
 async def start(message: Message):
     user = await UserService(async_session).get_by_id(message.chat.id)
     if not user:
+        username = message.from_user.username.lower() if message.from_user.username else "unknown"
         new_user = User(
             user_id=message.chat.id,
-            username=message.from_user.full_name,
-            link=f"t.me/{message.from_user.username}",
+            username=username ,
+            link=f"t.me/{username}",
         )
         await UserService(async_session).create(new_user)
 

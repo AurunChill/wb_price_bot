@@ -8,7 +8,7 @@ class Product(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.user_id"))
-    article = Column(String, unique=True)
+    article = Column(String)
     name = Column(String)
     current_price = Column(Float)
     prev_price = Column(Float)          
