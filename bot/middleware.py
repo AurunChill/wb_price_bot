@@ -14,7 +14,9 @@ class CheckUserMiddleware(BaseMiddleware):
             if str(user.id) not in admins and user.username.lower() not in admins:
                 async with async_session() as session:
                     service = AllowedUserService(session)
-                    if not await service.is_allowed(user.id):
+                    user_id = user.id
+                    username = user.username.lower()
+                    if not await service.is_allowed_by_id(user_id) and not await service.is_allowed_by_username(username):
                         await event.answer("<b>Доступ запрещён!</b> 🔒")
                         return
 

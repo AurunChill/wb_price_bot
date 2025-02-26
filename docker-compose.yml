@@ -6,7 +6,7 @@ services:
     container_name: wb_price_bot
     restart: always
     volumes:
-      - ./bot/bot.log:/wb_price_bot/bot.log
-      - ./bot/data/wildberries.db:/wb_price_bot/data/wildberries.db
+      - ./bot/bot.log:/wb_price_bot/bot/bot.log
+      - ./bot/data/wildberries.db:/wb_price_bot/bot/data/wildberries.db
     env_file:
       - .env
